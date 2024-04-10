@@ -96,8 +96,8 @@ def write_uint32(f, val):
     f.write(uint32_pack(val))
 
 
-def write_uint32(f, val):
-    f.write(pack("i", val))
+def write_int32(f, val):
+    f.write(pack(">i", val))
 
 
 def write_uint32_le(f, val):

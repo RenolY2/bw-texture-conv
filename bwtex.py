@@ -341,7 +341,7 @@ class BW1Texture(Texture):
         f.write(b"\x00"*12)
         
         mipcount = 1 # len(self.mipmaps)
-        write_uint32(f, mipcount)
+        write_uint32_le(f, mipcount)
         assert f.tell()-start == 0x54
         
         imgdata, palettedata, _ = encode_image(image, FORMAT[self.fmt], PaletteFormat.RGB5A3, mipmap_count=1)
@@ -390,7 +390,7 @@ class BW1Texture(Texture):
         pad = f.read(0xC)
         assert pad == b"\x00"*0xC
         mipcount = read_uint32_le(f)
-
+        print(mipcount,"mips")
         section = read_id(f)
         assert section in (MIP, PALLETE)
         #print(section)
