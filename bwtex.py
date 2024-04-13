@@ -67,6 +67,9 @@ FORMATDEFAULTSBW1 = {
     "RGBA": (20, 0, 255, 17, 1024, 0xFFFFFFFF),
 }
 
+def valuerange_assertion(val, start, end):
+    if not start <= val <= end:
+        raise RuntimeError("Value needs to be in range of {0} to {1} but is {2}.")
 
 
 class Texture(object):
@@ -108,6 +111,54 @@ class BW2Texture(Texture):
         self.mipmaps = []
         #self.mipmaps_decoded = []
     
+    def header_to_string(self):
+        unkint7 = self.unkint7 
+        if unkint7 == 0xFFFFFFFF:
+            unkint7 = -1
+        if len(self.mipmaps) > 1:
+            values = ["MipMap", self.unkint2, self.unkint3, self.unkint4, self.unkint5, self.unkint6, unkint7]
+        else:
+            values = [self.unkint2, self.unkint3, self.unkint4, self.unkint5, self.unkint6, unkint7]
+        
+        return ".".join(str(x) for x in values)
+        
+    def header_from_string(self, string):
+        values = string.split(".")
+        if len(values) == 0:
+            return 
+            
+        if values[0].lower() == "mipmap":
+            values.pop(0)
+        
+        if len(values) < 6:
+            return 
+        
+        try:
+            values = [int(x) for x in values[:6]]
+        except:
+            raise RuntimeError("Non-number header values encountered:", values)
+        if values[0] in (4, 12, 20):
+            valmap = {4: 4100, 12: 4108, 20: 4116}
+            new = valmap[values[0]]
+            print("BW1 values detected. Changing", values[0], "to", new)
+            values[0] = new
+            
+        if values[0] not in (4100, 4108, 4116): raise RuntimeError("Unknown value for value 1: {0}. Needs to be 4, 12 or 20.".format(values[0]))
+        valuerange_assertion(values[1], 0, 255)
+        valuerange_assertion(values[2], 0, 255)
+        valuerange_assertion(values[3], 0, 255)
+        valuerange_assertion(values[4], 0, 1024)
+        valuerange_assertion(values[5], -1, 25)
+        
+        self.unkint2 = values[0]
+        self.unkint3 = values[1]
+        self.unkint4 = values[2]
+        self.unkint5 = values[3]
+        self.unkint6 = values[4]
+        self.unkint7 = values[5]
+        if self.unkint7 == -1:
+            self.unkint7 = 0xFFFFFFFF
+            
     @classmethod
     def from_path(cls, path, name, fmt, unkint2=None, unkint3=None, unkint4=None, unkint5=None, unkint6=None, unkint7=None, mipmaps=1, autogenmipmaps=False, mipmappaths = []):
         if unkint2 is None: unkint2 = FORMATDEFAULTSBW2[fmt][0]
@@ -129,6 +180,21 @@ class BW2Texture(Texture):
         tex.unkint7 = unkint7
         img = Image.open(path)
         tex.mipmaps.append(img)
+        
+        if autogenmipmaps:
+            if log2(img.width) % 1 != 0 or log2(img.height) % 1 != 0:
+                print("Warning: Cannot generate mipmaps for non-power of 2 texture. Skipping mipmap generation.")
+            else:
+                mipmap_count = int(log2(min(img.width, img.height)))
+                mipmap_width = img.width 
+                mipmap_height = img.height 
+                
+                for i in range(mipmap_count):
+                    if i != 0:
+                        mipmap_width //= 2
+                        mipmap_height //= 2
+                        mipmap_image = img.resize((mipmap_width, mipmap_height), Image.NEAREST)
+                        tex.mipmaps.append(mipmap_image)
         
         return tex
     
@@ -172,7 +238,13 @@ class BW2Texture(Texture):
         write_uint32_le(f, len(imgdata.getbuffer()))
         f.write(imgdata.getbuffer())
         
-        
+        if len(self.mipmaps) > 1:
+            for mipmap in self.mipmaps[1:]:
+                imgdata, palettedata, _ = encode_image(mipmap, FORMAT[self.fmt], PaletteFormat.RGB5A3, mipmap_count=1)
+                write_id(f, MIP)
+                write_uint32_le(f, len(imgdata.getbuffer()))
+                f.write(imgdata.getbuffer())
+    
     @classmethod 
     def from_file(cls, f):
         #f.seek(0)
@@ -277,8 +349,8 @@ class BW1Texture(Texture):
     def __init__(self, name):
         super().__init__(name)
         
-        self.unkint1 = 0 
-        self.unkint2 = 0 # 4100, 4108 or 4116
+        self.unkint1 = 1 
+        self.unkint2 = 0 # 4, 12, 20
         self.fmt = "DXT1" 
         self.unkint3 = 0 
         self.unkint4 = 0
@@ -293,6 +365,56 @@ class BW1Texture(Texture):
         self.mipmaps = []
         #self.mipmaps_decoded = []
     
+    def header_to_string(self):
+        unkint7 = self.unkint7 
+        if unkint7 == 0xFFFFFFFF:
+            unkint7 = -1
+        if len(self.mipmaps) > 1:
+            values = ["MipMap", self.unkint2, self.unkint3, self.unkint4, self.unkint5, self.unkint6, unkint7]
+        else:
+            values = [self.unkint2, self.unkint3, self.unkint4, self.unkint5, self.unkint6, unkint7]
+        
+        return ".".join(str(x) for x in values)
+    
+    def header_from_string(self, string):
+        values = string.split(".")
+        if len(values) == 0:
+            return 
+            
+        if values[0].lower() == "mipmap":
+            values.pop(0)
+        
+        if len(values) < 6:
+            return 
+        
+        try:
+            values = [int(x) for x in values[:6]]
+        except:
+            raise RuntimeError("Non-number header values encountered:", values)
+            
+        if values[0] in (4100, 4108, 4116):
+            valmap = {4100: 4, 4108: 12, 4116: 20}
+            new = valmap[values[0]]
+            print("BW2 values detected. Changing", values[0], "to", new)
+            values[0] = new
+            
+        if values[0] not in (4, 12, 20): raise RuntimeError("Unknown value for value 1: {0}. Needs to be 4, 12 or 20.".format(values[0]))
+        valuerange_assertion(values[1], 0, 255)
+        valuerange_assertion(values[2], 0, 255)
+        valuerange_assertion(values[3], 0, 255)
+        valuerange_assertion(values[4], 0, 1024)
+        valuerange_assertion(values[5], -1, 25)
+        
+        self.unkint2 = values[0]
+        self.unkint3 = values[1]
+        self.unkint4 = values[2]
+        self.unkint5 = values[3]
+        self.unkint6 = values[4]
+        self.unkint7 = values[5]
+        if self.unkint7 == -1:
+            self.unkint7 = 0xFFFFFFFF
+       
+            
     @classmethod
     def from_path(cls, path, name, fmt, unkint2=None, unkint3=None, unkint4=None, unkint5=None, unkint6=None, unkint7=None, mipmaps=1, autogenmipmaps=False, mipmappaths = []):
         if unkint2 is None: unkint2 = FORMATDEFAULTSBW1[fmt][0]
@@ -315,6 +437,20 @@ class BW1Texture(Texture):
         img = Image.open(path)
         tex.mipmaps.append(img)
         
+        if autogenmipmaps:
+            if log2(img.width) % 1 != 0 or log2(img.height) % 1 != 0:
+                print("Warning: Cannot generate mipmaps for non-power of 2 texture. Skipping mipmap generation.")
+            else:
+                mipmap_count = int(log2(min(img.width, img.height)))
+                mipmap_width = img.width 
+                mipmap_height = img.height 
+                
+                for i in range(mipmap_count):
+                    if i != 0:
+                        mipmap_width //= 2
+                        mipmap_height //= 2
+                        mipmap_image = img.resize((mipmap_width, mipmap_height), Image.NEAREST)
+                        tex.mipmaps.append(mipmap_image)
         return tex
     
     def write(self, f):
@@ -340,7 +476,7 @@ class BW1Texture(Texture):
         write_uint32_le(f, self.unkint7)
         f.write(b"\x00"*12)
         
-        mipcount = 1 # len(self.mipmaps)
+        mipcount = len(self.mipmaps)
         write_uint32_le(f, mipcount)
         assert f.tell()-start == 0x54
         
@@ -355,7 +491,13 @@ class BW1Texture(Texture):
         write_uint32_le(f, len(imgdata.getbuffer()))
         f.write(imgdata.getbuffer())
         
-        
+        if len(self.mipmaps) > 1:
+            for mipmap in self.mipmaps[1:]:
+                imgdata, palettedata, _ = encode_image(mipmap, FORMAT[self.fmt], PaletteFormat.RGB5A3, mipmap_count=1)
+                write_id(f, MIP)
+                write_uint32_le(f, len(imgdata.getbuffer()))
+                f.write(imgdata.getbuffer())
+                
     @classmethod 
     def from_file(cls, f):
         name = f.read(0x10).rstrip(b"\x00").decode("ascii")

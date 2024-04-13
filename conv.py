@@ -36,7 +36,8 @@ if __name__ == "__main__":
         if args.output is not None:
             outpath = args.output 
         else:
-            outpath = in_path.replace(".texture", "")+"."+tex.fmt+".png"
+            settings = tex.header_to_string()
+            outpath = in_path.replace(".texture", "")+"."+tex.fmt+"."+settings+".png"
         tex.mipmaps[0].save(outpath)
         """if len(tex.mipmaps) > 1:
             print("saved mipmap")
@@ -44,20 +45,29 @@ if __name__ == "__main__":
                 mip.save(in_path+".mip{0}".format(i)+".png")"""
     else:
         settings = os.path.basename(in_path).split(".")
+        name = settings.pop(0)
+        
         if args.format is None:
             if len(settings) > 2:
-                fmt = settings[1]
+                fmt = settings.pop(0)
                 if fmt not in bwtex.STRTOFORMAT:
                     fmt = "DXT1"
             else:
                 fmt = "DXT1"
         else:
             fmt = args.format
+        
+        if len(settings) > 1:
+            gen_mipmap = settings[0].lower() == "mipmap"
+        
+        
         print("Converting to format", fmt)
         if args.bw1:
-            tex = bwtex.BW1Texture.from_path(path=in_path, name=settings[0], fmt=fmt)
+            tex = bwtex.BW1Texture.from_path(path=in_path, name=name, fmt=fmt, autogenmipmaps=gen_mipmap)
         else:
-            tex = bwtex.BW2Texture.from_path(path=in_path, name=settings[0], fmt=fmt)
+            tex = bwtex.BW2Texture.from_path(path=in_path, name=name, fmt=fmt, autogenmipmaps=gen_mipmap)
+        
+        tex.header_from_string(".".join(settings))
         
         if args.output is None:
             outpath = in_path+".texture"

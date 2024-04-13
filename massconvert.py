@@ -51,6 +51,6 @@ if __name__ == "__main__":
                         tex = bwtex.BW1Texture.from_file(f)
                     else:
                         tex = bwtex.BW2Texture.from_file(f)
-                
-                tex.mipmaps[0].save(os.path.join(outputfolder, fname.replace(".texture", "")+"."+tex.fmt+".png"))
-                print("Saved to", os.path.join(outputfolder, fname.replace(".texture", "")+"."+tex.fmt+".png"))
+                settings = tex.header_to_string()
+                tex.mipmaps[0].save(os.path.join(outputfolder, fname.replace(".texture", "")+"."+tex.fmt+"."+settings+".png"))
+                print("Saved to", os.path.join(outputfolder, fname.replace(".texture", "")+"."+tex.fmt+"."+settings+".png"))
