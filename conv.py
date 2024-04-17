@@ -59,7 +59,8 @@ if __name__ == "__main__":
         
         if len(settings) > 1:
             gen_mipmap = settings[0].lower() == "mipmap"
-        
+        else:
+            gen_mipmap = False
         
         print("Converting to format", fmt)
         if args.bw1:
